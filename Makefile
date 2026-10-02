@@ -1,0 +1,37 @@
+.PHONY: install check test lint format db-up db-down migrate run compose-up compose-down
+
+install:
+	uv sync
+
+check:
+	uv run python manage.py check
+
+test:
+	uv run pytest
+
+lint:
+	uv run ruff check .
+	uv run ruff format --check .
+
+format:
+	uv run ruff check --fix .
+	uv run ruff format .
+
+db-up:
+	docker compose up -d db
+
+db-down:
+	docker compose stop db
+
+migrate:
+	uv run python manage.py migrate
+
+run:
+	uv run python manage.py runserver
+
+compose-up:
+	docker compose up --build
+
+compose-down:
+	docker compose down
+
