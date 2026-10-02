@@ -4,7 +4,7 @@ install:
 	uv sync
 
 check:
-	uv run python manage.py check
+	uv run --env-file .env python manage.py check
 
 test:
 	uv run pytest
@@ -24,14 +24,13 @@ db-down:
 	docker compose stop db
 
 migrate:
-	uv run python manage.py migrate
+	uv run --env-file .env python manage.py migrate
 
 run:
-	uv run python manage.py runserver
+	uv run --env-file .env python manage.py runserver
 
 compose-up:
 	docker compose up --build
 
 compose-down:
 	docker compose down
-

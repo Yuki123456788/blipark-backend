@@ -8,7 +8,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PATH="/opt/venv/bin:$PATH"
 
 RUN apt-get update \
-    && apt-get install --yes --no-install-recommends binutils gdal-bin libgdal-dev libgeos-dev libproj-dev \
+    && apt-get install --yes --no-install-recommends binutils libgdal36 libgeos-c1t64 libproj25 \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=uv /uv /uvx /bin/
@@ -26,4 +26,3 @@ EXPOSE 8000
 
 ENTRYPOINT ["/app/docker/entrypoint.sh"]
 CMD ["gunicorn", "config.wsgi:application", "--bind", "0.0.0.0:8000", "--workers", "2", "--access-logfile", "-"]
-

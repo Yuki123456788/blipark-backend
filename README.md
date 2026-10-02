@@ -21,8 +21,19 @@ Django／GeoDjango backend 與 TDX parking-data ingestion service 的初始骨�
 
 ```bash
 cp .env.example .env
+# Edit .env and replace both replace-me values before continuing.
+chmod 600 .env
 docker compose up --build
 ```
+
+可分別用以下指令產生本機 secret，再貼入 `.env`：
+
+```bash
+openssl rand -base64 48  # DJANGO_SECRET_KEY
+openssl rand -hex 32     # POSTGRES_PASSWORD
+```
+
+TDX credentials 尚未使用時可以保持空白；開始串接 TDX 後，再將 console 提供的 ID／secret 寫入本機 `.env`。
 
 啟動後可檢查：
 
@@ -63,11 +74,11 @@ brew install gdal geos proj
 cp .env.example .env
 docker compose up -d db
 uv sync
-uv run python manage.py migrate
-uv run python manage.py runserver
+uv run --env-file .env python manage.py migrate
+uv run --env-file .env python manage.py runserver
 ```
 
-注意：Django 本身不會自動讀取 `.env`。Docker Compose 會處理 `.env`；若直接在 host 執行，預設 development 值已對應 `.env.example`，自訂值則需由 shell、direnv 或 IDE 注入。
+注意：Django 本身不會自動讀取 `.env`。Docker Compose 會自動讀取；直接使用 uv 時，透過 `--env-file .env` 載入。Makefile 中需要 runtime configuration 的指令也已包含這個參數。
 
 ## 常用指令
 
@@ -89,7 +100,7 @@ make run         # Django development server
 | --- | --- |
 | `config.settings.development` | 本機與目前 Compose 開發環境 |
 | `config.settings.test` | pytest |
-| `config.settings.production` | production；強制要求非預設 secret |
+| `config.settings.production` | production；強制要求環境提供 secret、DB password 與 allowed hosts |
 
 主要環境變數見 [`.env.example`](.env.example)：
 
@@ -99,7 +110,13 @@ make run         # Django development server
 - `POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_CONN_MAX_AGE`
 - 未來使用的 `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`
 
-真實 `.env` 已被 `.gitignore` 排除，不要提交 credentials。
+`.env.example` 只包含欄位名稱與無效 placeholder，因此可以進 Git。真實 `.env`、`.env.local`、`.env.production` 與 `.secrets/` 都已被 `.gitignore` 排除，也不會被複製進 Docker image。可以這樣確認：
+
+```bash
+git check-ignore -v .env
+```
+
+Production 不應把 `.env` 打包進 image；由 deployment platform、Docker secret 或 VM 上權限受限的環境檔注入。不要把 secret 放進 `compose.yaml`、Django settings、Dockerfile、GitHub Actions YAML 或指令列參數。
 
 ## 專案邊界
 
@@ -127,4 +144,3 @@ tests/              跨 app 與 runtime tests
 6. 把 models 與 sync observability 註冊到 Django Admin。
 
 詳細順序見 [TDX ingestion 設計](../wiki/architecture/data-ingestion.md)。
-

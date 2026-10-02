@@ -15,9 +15,12 @@ def env_list(name: str, default: str = "") -> list[str]:
     return [value.strip() for value in os.getenv(name, default).split(",") if value.strip()]
 
 
-SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "unsafe-development-key")
+SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "")
 DEBUG = env_bool("DJANGO_DEBUG")
 ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS")
+
+TDX_CLIENT_ID = os.getenv("TDX_CLIENT_ID", "")
+TDX_CLIENT_SECRET = os.getenv("TDX_CLIENT_SECRET", "")
 
 INSTALLED_APPS = [
     "django.contrib.admin",
@@ -65,7 +68,7 @@ DATABASES = {
         "ENGINE": "django.contrib.gis.db.backends.postgis",
         "NAME": os.getenv("POSTGRES_DB", "blipark"),
         "USER": os.getenv("POSTGRES_USER", "blipark"),
-        "PASSWORD": os.getenv("POSTGRES_PASSWORD", "blipark"),
+        "PASSWORD": os.getenv("POSTGRES_PASSWORD", ""),
         "HOST": os.getenv("POSTGRES_HOST", "127.0.0.1"),
         "PORT": os.getenv("POSTGRES_PORT", "5432"),
         "CONN_MAX_AGE": int(os.getenv("POSTGRES_CONN_MAX_AGE", "60")),
