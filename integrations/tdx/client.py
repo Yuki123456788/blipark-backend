@@ -9,6 +9,8 @@ from typing import Any
 import httpx
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
+from parking.exceptions import IngestionClientError, IngestionResponseError
+
 from .schemas import TDXParkingWrapper
 
 TOKEN_URL = "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token"
@@ -47,7 +49,7 @@ DATASET_SPECS = {
 }
 
 
-class TDXClientError(RuntimeError):
+class TDXClientError(IngestionClientError):
     """Base error with messages safe to persist in sync summaries."""
 
 
@@ -65,7 +67,7 @@ class TDXRequestError(TDXClientError):
         self.status_code = status_code
 
 
-class TDXResponseError(TDXClientError):
+class TDXResponseError(TDXClientError, IngestionResponseError):
     pass
 
 

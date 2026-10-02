@@ -1,4 +1,4 @@
-"""Source-agnostic orchestration for the Phase 0 TDX parking sync."""
+"""Source-neutral orchestration for observable parking ingestion."""
 
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass, field
@@ -9,29 +9,7 @@ from uuid import UUID
 from django.utils import timezone
 from pydantic import BaseModel, ValidationError
 
-from integrations.tdx.client import (
-    TDXClient,
-    TDXClientError,
-    TDXDataset,
-    TDXPage,
-    TDXResponseError,
-)
-from integrations.tdx.mapper import (
-    TDXMappingError,
-    map_car_park,
-    map_off_street_spots,
-    map_on_street_spot,
-    map_parking_entrances,
-    map_parking_segment,
-)
-from integrations.tdx.schemas import (
-    TDXCarPark,
-    TDXOffStreetSpotGroup,
-    TDXOnStreetSpot,
-    TDXParkingEntranceExit,
-    TDXParkingSegment,
-    TDXParkingWrapper,
-)
+from parking.exceptions import IngestionClientError, IngestionResponseError
 from parking.models import (
     SourceDataset,
     SourceProvider,
@@ -53,56 +31,14 @@ from parking.repositories import (
 
 @dataclass(frozen=True, slots=True)
 class DatasetProcessor:
-    dataset: TDXDataset
+    dataset: Any
     source_dataset: SourceDataset
     record_model: type[BaseModel]
-    mapper: Callable[[Any, TDXParkingWrapper], list[NormalizedRecord]]
+    mapper: Callable[[Any, Any], list[NormalizedRecord]]
     source_id_fields: tuple[str, ...]
-    dependencies: tuple[TDXDataset, ...] = ()
-
-
-PROCESSORS = (
-    DatasetProcessor(
-        TDXDataset.CAR_PARKS,
-        SourceDataset.CAR_PARK,
-        TDXCarPark,
-        lambda record, metadata: [map_car_park(record, metadata)],
-        ("CarParkID",),
-    ),
-    DatasetProcessor(
-        TDXDataset.PARKING_ENTRANCE_EXITS,
-        SourceDataset.ENTRANCE_EXIT,
-        TDXParkingEntranceExit,
-        map_parking_entrances,
-        ("CarParkID",),
-        (TDXDataset.CAR_PARKS,),
-    ),
-    DatasetProcessor(
-        TDXDataset.OFF_STREET_SPOTS,
-        SourceDataset.OFF_STREET_SPOT,
-        TDXOffStreetSpotGroup,
-        map_off_street_spots,
-        ("CarParkID",),
-        (TDXDataset.CAR_PARKS,),
-    ),
-    DatasetProcessor(
-        TDXDataset.PARKING_SEGMENTS,
-        SourceDataset.PARKING_SEGMENT,
-        TDXParkingSegment,
-        lambda record, metadata: [map_parking_segment(record, metadata)],
-        ("ParkingSegmentID",),
-    ),
-    DatasetProcessor(
-        TDXDataset.ON_STREET_SPOTS,
-        SourceDataset.ON_STREET_SPOT,
-        TDXOnStreetSpot,
-        lambda record, metadata: [map_on_street_spot(record, metadata)],
-        ("ParkingSpotID", "ParkingSegmentID"),
-        (TDXDataset.PARKING_SEGMENTS,),
-    ),
-)
-
-CITY_AUTHORITIES = {"Tainan": "TNN"}
+    dependencies: tuple[Any, ...] = ()
+    mapping_error_types: tuple[type[Exception], ...] = (ValueError,)
+    authority_by_city: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(slots=True)
@@ -131,7 +67,7 @@ class IssueRecord:
 
 @dataclass(slots=True)
 class DatasetSummary:
-    dataset: TDXDataset
+    dataset: Any
     status: SyncStatus
     counters: SyncCounters = field(default_factory=SyncCounters)
     source_updated_at: datetime | None = None
@@ -239,13 +175,15 @@ class ParkingSyncService:
     def __init__(
         self,
         *,
-        client: TDXClient,
+        client: Any,
+        processors: Iterable[DatasetProcessor],
         repository: ParkingRepository | None = None,
         recorder: SyncRecorder | None = None,
         clock: Callable[[], datetime] = timezone.now,
         max_issues_per_dataset: int = 1000,
     ):
         self.client = client
+        self.processors = tuple(processors)
         self.repository = repository or ParkingRepository()
         self.recorder = recorder or DjangoSyncRecorder()
         self.clock = clock
@@ -255,16 +193,20 @@ class ParkingSyncService:
         self,
         *,
         city: str = "Tainan",
-        datasets: Iterable[TDXDataset] | None = None,
+        datasets: Iterable[Any] | None = None,
     ) -> SyncSummary:
-        selected = set(datasets or TDXDataset)
+        selected = (
+            {processor.dataset for processor in self.processors}
+            if datasets is None
+            else set(datasets)
+        )
         started_at = self.clock()
         run_id = self.recorder.start_run(city=city, started_at=started_at)
         summaries: list[DatasetSummary] = []
-        status_by_dataset: dict[TDXDataset, SyncStatus] = {}
+        status_by_dataset: dict[Any, SyncStatus] = {}
         authority_code = ""
 
-        for processor in PROCESSORS:
+        for processor in self.processors:
             if processor.dataset not in selected:
                 continue
             dataset_result_id = self.recorder.start_dataset(
@@ -345,15 +287,15 @@ class ParkingSyncService:
             for page in self.client.iter_pages(processor.dataset, city=city):
                 summary.counters.pages_fetched += 1
                 summary.counters.fetched += len(page.records)
-                expected_authority = CITY_AUTHORITIES.get(city)
+                expected_authority = processor.authority_by_city.get(city)
                 if expected_authority and page.metadata.authority_code != expected_authority:
-                    raise TDXResponseError(
+                    raise IngestionResponseError(
                         f"{processor.dataset.value} returned authority "
                         f"{page.metadata.authority_code} for {city}, expected {expected_authority}"
                     )
                 authority_code = authority_code or page.metadata.authority_code
                 if page.metadata.authority_code != authority_code:
-                    raise TDXClientError(
+                    raise IngestionResponseError(
                         f"{processor.dataset.value} authority changed during pagination"
                     )
                 summary.source_updated_at = page.metadata.source_updated_at
@@ -380,7 +322,7 @@ class ParkingSyncService:
 
                     try:
                         mapped_records = processor.mapper(dto, page.metadata)
-                    except TDXMappingError as error:
+                    except processor.mapping_error_types as error:
                         summary.counters.failed += 1
                         issue_count = self._record_issue(
                             dataset_result_id,
@@ -431,7 +373,7 @@ class ParkingSyncService:
                             )
                             continue
                         self._count_upsert(summary.counters, outcome)
-        except TDXClientError as error:
+        except IngestionClientError as error:
             summary.status = SyncStatus.FAILED
             summary.error_summary = str(error)
             self._record_issue(
@@ -463,7 +405,7 @@ class ParkingSyncService:
         error: ValidationError,
         *,
         source_id: str,
-        page: TDXPage,
+        page: Any,
         record_index: int,
     ) -> IssueRecord:
         details = error.errors(include_url=False, include_context=False, include_input=False)

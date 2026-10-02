@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import UUID
 
 from integrations.tdx.client import TDXDataset, TDXPage, TDXRequestError
+from integrations.tdx.pipeline import TDX_PROCESSORS
 from integrations.tdx.schemas import (
     TDXCarParkResponse,
     TDXOffStreetSpotResponse,
@@ -104,6 +105,7 @@ def test_service_counts_source_records_and_flattened_domain_entities():
 
     summary = ParkingSyncService(
         client=client,
+        processors=TDX_PROCESSORS,
         repository=repository,
         recorder=recorder,
     ).sync(datasets=[TDXDataset.CAR_PARKS, TDXDataset.OFF_STREET_SPOTS])
@@ -130,6 +132,7 @@ def test_service_continues_after_entity_validation_failure_without_raw_payload_i
 
     summary = ParkingSyncService(
         client=FakeClient({TDXDataset.CAR_PARKS: [page]}),
+        processors=TDX_PROCESSORS,
         repository=FakeRepository(),
         recorder=recorder,
     ).sync(datasets=[TDXDataset.CAR_PARKS])
@@ -161,6 +164,7 @@ def test_failed_parent_dataset_blocks_dependents_but_not_independent_datasets():
 
     summary = ParkingSyncService(
         client=client,
+        processors=TDX_PROCESSORS,
         repository=FakeRepository(),
         recorder=recorder,
     ).sync(
@@ -192,6 +196,7 @@ def test_persistence_failure_isolated_to_each_mapped_entity():
 
     summary = ParkingSyncService(
         client=FakeClient({TDXDataset.OFF_STREET_SPOTS: [spot_page]}),
+        processors=TDX_PROCESSORS,
         repository=FakeRepository(error=MissingParentError("parent missing")),
         recorder=recorder,
     ).sync(datasets=[TDXDataset.OFF_STREET_SPOTS])
@@ -215,6 +220,7 @@ def test_service_rejects_wrong_authority_before_mapping_records():
 
     summary = ParkingSyncService(
         client=FakeClient({TDXDataset.CAR_PARKS: [car_page]}),
+        processors=TDX_PROCESSORS,
         repository=repository,
         recorder=FakeRecorder(),
     ).sync(datasets=[TDXDataset.CAR_PARKS])
@@ -238,6 +244,7 @@ def test_issue_persistence_is_capped_while_counters_remain_complete():
 
     summary = ParkingSyncService(
         client=FakeClient({TDXDataset.PARKING_ENTRANCE_EXITS: [page]}),
+        processors=TDX_PROCESSORS,
         repository=FakeRepository(),
         recorder=recorder,
         max_issues_per_dataset=1,

@@ -2,6 +2,7 @@ from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
 from integrations.tdx.client import TDXClient, TDXClientError, TDXDataset
+from integrations.tdx.pipeline import TDX_PROCESSORS
 from parking.models import SyncStatus
 from parking.services.sync import ParkingSyncService
 
@@ -33,7 +34,7 @@ class Command(BaseCommand):
                 page_size=settings.TDX_PAGE_SIZE,
                 max_attempts=settings.TDX_MAX_ATTEMPTS,
             ) as client:
-                summary = ParkingSyncService(client=client).sync(
+                summary = ParkingSyncService(client=client, processors=TDX_PROCESSORS).sync(
                     city=options["city"],
                     datasets=datasets,
                 )
