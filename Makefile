@@ -1,4 +1,4 @@
-.PHONY: install check test lint format db-up db-down migrate run compose-up compose-down
+.PHONY: install check test lint format db-up db-down migrate run sync compose-up compose-down
 
 install:
 	uv sync
@@ -28,6 +28,9 @@ migrate:
 
 run:
 	uv run --env-file .env python manage.py runserver
+
+sync:
+	uv run --env-file .env python manage.py sync_tdx
 
 compose-up:
 	docker compose up --build

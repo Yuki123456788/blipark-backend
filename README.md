@@ -2,7 +2,7 @@
 
 Django／GeoDjango backend 與 TDX parking-data ingestion service 的初始骨架。
 
-目前已包含可執行的 Django project、PostGIS 設定、health endpoints、container 設定與品質檢查；尚未假設未驗證的 TDX schema，因此 parking models 與 sync pipeline 會在取得真實 fixture 後實作。
+目前已包含可執行的 Django project、PostGIS 設定、health endpoints、TDX Parking v1 validation／mapping／sync pipeline、container 設定與品質檢查。Phase 0 只同步台南靜態停車資料，trigger 限 manual CLI。
 
 ## 技術版本
 
@@ -90,6 +90,7 @@ make format      # 自動修正 lint 與格式
 make db-up       # 只啟動 PostGIS
 make migrate     # 執行 migrations
 make run         # Django development server
+make sync        # 同步全部台南靜態 TDX parking datasets
 ```
 
 不使用 `make` 時，等價指令都是 `uv run ...`。
@@ -108,7 +109,8 @@ make run         # Django development server
 - `DJANGO_ALLOWED_HOSTS`
 - `POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`
 - `POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_CONN_MAX_AGE`
-- 未來使用的 `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`
+- `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`
+- `TDX_TIMEOUT_SECONDS`、`TDX_PAGE_SIZE`、`TDX_MAX_ATTEMPTS`
 
 `.env.example` 只包含欄位名稱與無效 placeholder，因此可以進 Git。真實 `.env`、`.env.local`、`.env.production` 與 `.secrets/` 都已被 `.gitignore` 排除，也不會被複製進 Docker image。可以這樣確認：
 
@@ -134,13 +136,56 @@ tests/              跨 app 與 runtime tests
 - Management command、未來 API 與 Admin action 只作為 trigger；同步邏輯放在 `ParkingSyncService`。
 - API 與 sync 可用不同 process 執行，但目前共享 code、schema 與 database。
 
-## 下一個實作 milestone
+## 執行 TDX parking sync
 
-1. 確認 TDX 台南 parking endpoints、認證、pagination、quota 與真實 response。
-2. 保存移除敏感資訊的 fixtures，驗證 ID scope、nullability、geometry 與 relationships。
-3. 建立 Pydantic DTO 與 schema-drift tests。
-4. 建立最小 parking／source reference／SyncRun models 與 migrations。
-5. 實作 mapper、idempotent upsert、`ParkingSyncService` 與 `sync_tdx` command。
-6. 把 models 與 sync observability 註冊到 Django Admin。
+先完成 migration 並確認 `.env` 有有效的 `TDX_CLIENT_ID`、`TDX_CLIENT_SECRET`：
 
-詳細順序見 [TDX ingestion 設計](../wiki/architecture/data-ingestion.md)。
+```bash
+uv run --env-file .env python manage.py migrate
+uv run --env-file .env python manage.py sync_tdx
+```
+
+如果 host 沒有 GDAL／GEOS／PROJ，使用 Compose：
+
+```bash
+docker compose run --rm backend python manage.py sync_tdx
+```
+
+只同步部分 datasets 時可重複使用 `--dataset`：
+
+```bash
+uv run --env-file .env python manage.py sync_tdx \
+  --dataset car_parks \
+  --dataset parking_entrance_exits
+```
+
+可用值：`car_parks`、`parking_entrance_exits`、`off_street_spots`、`parking_segments`、`on_street_spots`。預設依 parent dependency 順序執行全部 datasets。
+
+每次執行都建立 `SyncRun` 與 per-dataset results；CLI 印出 fetched／valid／invalid／inserted／updated／unchanged／failed counters。所有 datasets 成功才回傳 exit code 0；partial 或 failed 以非零結束，但已成功且各自完成 transaction 的 entities 不回滾。到 `/admin/` 可查看 entity、provenance、run 與 issue。
+
+目前不因單次 missing source record 自動停用或刪除 entity。只有所有 pages 完整取得後才有資格做 missing-set 判斷，而 inactive threshold 尚待 Phase 1 資料觀察決定。
+
+## 測試
+
+預設 suite 不需要 database，但 host 仍需能載入 GeoDjango native libraries；缺少時使用 backend container：
+
+```bash
+docker compose build backend
+docker compose run --rm --entrypoint sh \
+  -e DJANGO_SETTINGS_MODULE=config.settings.test backend \
+  -c 'uv sync --locked && pytest'
+```
+
+Repository tests 需要真實 PostGIS，且必須明確 opt in，避免 unit test 意外連開發資料庫：
+
+```bash
+docker compose up -d db
+docker compose run --rm --entrypoint sh \
+  -e DJANGO_SETTINGS_MODULE=config.settings.test \
+  -e TEST_WITH_POSTGIS=true backend \
+  -c 'uv sync --locked && pytest tests/integration'
+```
+
+測試設定會使用 Django 的獨立 test database，不應指向 production credentials。
+
+TDX contract、schema 正規化理由與同步流程見 [Wiki](../wiki/architecture/tdx-parking-contract.md)。
