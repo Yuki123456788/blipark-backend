@@ -89,6 +89,30 @@ def test_client_honors_retry_after_for_rate_limit():
     assert delays == [13]
 
 
+def test_client_refreshes_token_once_after_unauthorized_response():
+    token_calls = 0
+    data_calls = 0
+
+    def handler(request):
+        nonlocal token_calls, data_calls
+        if "openid-connect/token" in str(request.url):
+            token_calls += 1
+            return httpx.Response(200, json=token_response(f"token-{token_calls}"))
+        data_calls += 1
+        if data_calls == 1:
+            assert request.headers["authorization"] == "Bearer token-1"
+            return httpx.Response(401, json={"message": "expired"})
+        assert request.headers["authorization"] == "Bearer token-2"
+        return httpx.Response(200, json=parking_response("CarParks", []))
+
+    client = make_client(handler)
+
+    list(client.iter_pages(TDXDataset.CAR_PARKS))
+
+    assert token_calls == 2
+    assert data_calls == 2
+
+
 def test_client_retries_server_errors_but_bounds_attempts():
     calls = 0
 

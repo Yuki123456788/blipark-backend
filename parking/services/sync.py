@@ -9,7 +9,13 @@ from uuid import UUID
 from django.utils import timezone
 from pydantic import BaseModel, ValidationError
 
-from integrations.tdx.client import TDXClient, TDXClientError, TDXDataset, TDXPage
+from integrations.tdx.client import (
+    TDXClient,
+    TDXClientError,
+    TDXDataset,
+    TDXPage,
+    TDXResponseError,
+)
 from integrations.tdx.mapper import (
     TDXMappingError,
     map_car_park,
@@ -95,6 +101,8 @@ PROCESSORS = (
         (TDXDataset.PARKING_SEGMENTS,),
     ),
 )
+
+CITY_AUTHORITIES = {"Tainan": "TNN"}
 
 
 @dataclass(slots=True)
@@ -337,6 +345,12 @@ class ParkingSyncService:
             for page in self.client.iter_pages(processor.dataset, city=city):
                 summary.counters.pages_fetched += 1
                 summary.counters.fetched += len(page.records)
+                expected_authority = CITY_AUTHORITIES.get(city)
+                if expected_authority and page.metadata.authority_code != expected_authority:
+                    raise TDXResponseError(
+                        f"{processor.dataset.value} returned authority "
+                        f"{page.metadata.authority_code} for {city}, expected {expected_authority}"
+                    )
                 authority_code = authority_code or page.metadata.authority_code
                 if page.metadata.authority_code != authority_code:
                     raise TDXClientError(

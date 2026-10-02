@@ -203,6 +203,27 @@ def test_persistence_failure_isolated_to_each_mapped_entity():
     assert len(recorder.issues) == 3
 
 
+def test_service_rejects_wrong_authority_before_mapping_records():
+    car_page = fixture_page(
+        TDXDataset.CAR_PARKS,
+        "car_parks.json",
+        TDXCarParkResponse,
+        "CarParks",
+    )
+    car_page.metadata.authority_code = "KHH"
+    repository = FakeRepository()
+
+    summary = ParkingSyncService(
+        client=FakeClient({TDXDataset.CAR_PARKS: [car_page]}),
+        repository=repository,
+        recorder=FakeRecorder(),
+    ).sync(datasets=[TDXDataset.CAR_PARKS])
+
+    assert summary.status == SyncStatus.FAILED
+    assert "expected TNN" in summary.datasets[0].error_summary
+    assert repository.records == []
+
+
 def test_issue_persistence_is_capped_while_counters_remain_complete():
     payload = fixture_payload("parking_entrance_exits.json")
     response = TDXParkingEntranceExitResponse.model_validate(payload)
