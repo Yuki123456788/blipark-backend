@@ -44,11 +44,24 @@ class ParkingModelContractTest(SimpleTestCase):
 
     def test_source_identity_is_scoped_by_dataset(self):
         constraint_names = {constraint.name for constraint in SourceReference._meta.constraints}
+        identity_constraint = next(
+            constraint
+            for constraint in SourceReference._meta.constraints
+            if constraint.name == "source_ref_identity_uniq"
+        )
 
         assert constraint_names == {
             "source_ref_identity_uniq",
             "source_ref_entity_dataset_uniq",
         }
+        assert identity_constraint.fields == (
+            "source",
+            "authority_code",
+            "dataset",
+            "source_scope",
+            "source_id",
+            "source_discriminator",
+        )
 
     def test_spot_parent_shape_is_database_constrained(self):
         constraint_names = {constraint.name for constraint in ParkingSpot._meta.constraints}

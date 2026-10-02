@@ -60,13 +60,15 @@ class SourceReferenceAdmin(admin.ModelAdmin):
         "source",
         "authority_code",
         "dataset",
+        "source_scope",
         "source_id",
+        "source_discriminator",
         "entity_type",
         "is_active",
         "last_seen_at",
     )
     list_filter = ("source", "authority_code", "dataset", "entity_type", "is_active")
-    search_fields = ("source_id", "entity__id")
+    search_fields = ("source_scope", "source_id", "source_discriminator", "entity__id")
     list_select_related = ("entity",)
     readonly_fields = ("created_at", "updated_at")
 
