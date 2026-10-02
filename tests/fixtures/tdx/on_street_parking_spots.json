@@ -1,0 +1,18 @@
+{
+  "UpdateTime": "2026-10-03T03:06:32+08:00",
+  "UpdateInterval": 14400,
+  "SrcUpdateTime": "2026-10-03T03:06:03+08:00",
+  "SrcUpdateInterval": -1,
+  "AuthorityCode": "TNN",
+  "VersionID": 8387,
+  "Count": 14872,
+  "ParkingSegmentSpots": [
+    {
+      "ParkingSegmentID": "1408",
+      "ParkingSpotID": "1408-095",
+      "Position": {"PositionLat": 23.02357, "PositionLon": 120.23821},
+      "SpaceType": 1,
+      "HasChargingPoint": 0
+    }
+  ]
+}
