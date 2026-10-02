@@ -7,6 +7,9 @@ from parking.models import (
     ParkingSegment,
     ParkingSpot,
     SourceReference,
+    SyncDatasetResult,
+    SyncIssue,
+    SyncRun,
 )
 
 
@@ -18,6 +21,9 @@ class ParkingAdminRegistrationTest(SimpleTestCase):
             ParkingSegment,
             ParkingSpot,
             SourceReference,
+            SyncRun,
+            SyncDatasetResult,
+            SyncIssue,
         ):
             assert model in admin.site._registry
 

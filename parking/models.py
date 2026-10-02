@@ -2,6 +2,7 @@ import uuid
 
 from django.contrib.gis.db import models
 from django.db.models import Q
+from django.utils import timezone
 
 
 class EntityKind(models.TextChoices):
@@ -44,6 +45,24 @@ class AccessKind(models.TextChoices):
 class SpotContext(models.TextChoices):
     OFF_STREET = "off_street", "Off-street lot"
     ON_STREET = "on_street", "On-street segment"
+
+
+class SyncStatus(models.TextChoices):
+    RUNNING = "running", "Running"
+    SUCCEEDED = "succeeded", "Succeeded"
+    PARTIAL = "partial", "Partially succeeded"
+    FAILED = "failed", "Failed"
+
+
+class SyncTrigger(models.TextChoices):
+    MANUAL_CLI = "manual_cli", "Manual CLI"
+
+
+class SyncIssueStage(models.TextChoices):
+    FETCH = "fetch", "Fetch"
+    VALIDATION = "validation", "Validation"
+    MAPPING = "mapping", "Mapping"
+    PERSISTENCE = "persistence", "Persistence"
 
 
 class ParkingEntity(models.Model):
@@ -244,3 +263,90 @@ class SourceReference(models.Model):
 
     def __str__(self):
         return f"{self.source}:{self.authority_code}:{self.dataset}:{self.source_id}"
+
+
+class SyncRun(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    source = models.CharField(max_length=16, choices=SourceProvider.choices)
+    city = models.CharField(max_length=64)
+    authority_code = models.CharField(max_length=32, blank=True)
+    trigger = models.CharField(max_length=16, choices=SyncTrigger.choices)
+    status = models.CharField(
+        max_length=16,
+        choices=SyncStatus.choices,
+        default=SyncStatus.RUNNING,
+    )
+    started_at = models.DateTimeField(default=timezone.now)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    error_summary = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("-started_at",)
+        indexes = [
+            models.Index(fields=("source", "city", "started_at"), name="sync_run_lookup_idx")
+        ]
+
+    def __str__(self):
+        return f"{self.source}:{self.city}:{self.started_at.isoformat()}"
+
+
+class SyncDatasetResult(models.Model):
+    run = models.ForeignKey(SyncRun, on_delete=models.CASCADE, related_name="dataset_results")
+    dataset = models.CharField(max_length=32, choices=SourceDataset.choices)
+    status = models.CharField(
+        max_length=16,
+        choices=SyncStatus.choices,
+        default=SyncStatus.RUNNING,
+    )
+    started_at = models.DateTimeField(default=timezone.now)
+    finished_at = models.DateTimeField(null=True, blank=True)
+    source_updated_at = models.DateTimeField(null=True, blank=True)
+    source_version_id = models.BigIntegerField(null=True, blank=True)
+    pages_fetched = models.PositiveIntegerField(default=0)
+    fetched = models.PositiveIntegerField(default=0)
+    valid = models.PositiveIntegerField(default=0)
+    invalid = models.PositiveIntegerField(default=0)
+    mapped = models.PositiveIntegerField(default=0)
+    inserted = models.PositiveIntegerField(default=0)
+    updated = models.PositiveIntegerField(default=0)
+    unchanged = models.PositiveIntegerField(default=0)
+    failed = models.PositiveIntegerField(default=0)
+    error_summary = models.TextField(blank=True)
+
+    class Meta:
+        ordering = ("run", "dataset")
+        constraints = [
+            models.UniqueConstraint(
+                fields=("run", "dataset"),
+                name="sync_dataset_run_uniq",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.run_id}:{self.dataset}:{self.status}"
+
+
+class SyncIssue(models.Model):
+    dataset_result = models.ForeignKey(
+        SyncDatasetResult,
+        on_delete=models.CASCADE,
+        related_name="issues",
+    )
+    stage = models.CharField(max_length=16, choices=SyncIssueStage.choices)
+    code = models.CharField(max_length=64)
+    source_id = models.CharField(max_length=255, blank=True)
+    page_offset = models.PositiveIntegerField(null=True, blank=True)
+    record_index = models.PositiveIntegerField(null=True, blank=True)
+    field_paths = models.JSONField(default=list, blank=True)
+    summary = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ("dataset_result", "id")
+        indexes = [
+            models.Index(fields=("stage", "code"), name="sync_issue_stage_idx"),
+            models.Index(fields=("source_id",), name="sync_issue_source_idx"),
+        ]
+
+    def __str__(self):
+        return f"{self.dataset_result_id}:{self.stage}:{self.code}"

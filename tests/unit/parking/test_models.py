@@ -9,6 +9,8 @@ from parking.models import (
     ParkingSegment,
     ParkingSpot,
     SourceReference,
+    SyncDatasetResult,
+    SyncIssue,
 )
 
 
@@ -52,3 +54,15 @@ class ParkingModelContractTest(SimpleTestCase):
         constraint_names = {constraint.name for constraint in ParkingSpot._meta.constraints}
 
         assert "spot_context_parent_ck" in constraint_names
+
+    def test_sync_result_is_unique_per_run_and_dataset(self):
+        constraint_names = {constraint.name for constraint in SyncDatasetResult._meta.constraints}
+
+        assert "sync_dataset_run_uniq" in constraint_names
+
+    def test_sync_issues_do_not_store_raw_payloads(self):
+        field_names = {field.name for field in SyncIssue._meta.fields}
+
+        assert "field_paths" in field_names
+        assert "summary" in field_names
+        assert "payload" not in field_names
