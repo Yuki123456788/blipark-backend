@@ -2,6 +2,7 @@
 
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
+from datetime import datetime
 from enum import StrEnum
 from time import monotonic, sleep
 from typing import Any
@@ -29,22 +30,34 @@ class TDXDataset(StrEnum):
 class DatasetSpec:
     path: str
     records_key: str
+    order_by: str
 
 
 DATASET_SPECS = {
-    TDXDataset.CAR_PARKS: DatasetSpec("/v1/Parking/OffStreet/CarPark/City/{city}", "CarParks"),
+    TDXDataset.CAR_PARKS: DatasetSpec(
+        "/v1/Parking/OffStreet/CarPark/City/{city}",
+        "CarParks",
+        "CarParkID",
+    ),
     TDXDataset.PARKING_ENTRANCE_EXITS: DatasetSpec(
         "/v1/Parking/OffStreet/ParkingEntranceExit/City/{city}",
         "ParkingEntranceExits",
+        "CarParkID",
     ),
     TDXDataset.OFF_STREET_SPOTS: DatasetSpec(
-        "/v1/Parking/OffStreet/ParkingSpot/City/{city}", "ParkingSpots"
+        "/v1/Parking/OffStreet/ParkingSpot/City/{city}",
+        "ParkingSpots",
+        "CarParkID",
     ),
     TDXDataset.PARKING_SEGMENTS: DatasetSpec(
-        "/v1/Parking/OnStreet/ParkingSegment/City/{city}", "ParkingSegments"
+        "/v1/Parking/OnStreet/ParkingSegment/City/{city}",
+        "ParkingSegments",
+        "ParkingSegmentID",
     ),
     TDXDataset.ON_STREET_SPOTS: DatasetSpec(
-        "/v1/Parking/OnStreet/ParkingSpot/City/{city}", "ParkingSegmentSpots"
+        "/v1/Parking/OnStreet/ParkingSpot/City/{city}",
+        "ParkingSegmentSpots",
+        "ParkingSegmentID,ParkingSpotID,Position/PositionLon,Position/PositionLat",
     ),
 }
 
@@ -150,6 +163,7 @@ class TDXClient:
         spec = DATASET_SPECS[dataset]
         offset = 0
         expected_count: int | None = None
+        expected_snapshot: tuple[int, datetime] | None = None
 
         while True:
             response = self._request(
@@ -161,6 +175,7 @@ class TDXClient:
                     "$skip": offset,
                     "$count": "true",
                     "$format": "JSON",
+                    "$orderby": spec.order_by,
                 },
             )
             payload = self._json_object(response, context=dataset.value)
@@ -173,6 +188,12 @@ class TDXClient:
                     f"{dataset.value} Count changed during pagination: "
                     f"{expected_count} -> {page.metadata.count}"
                 )
+
+            snapshot = (page.metadata.version_id, page.metadata.source_updated_at)
+            if expected_snapshot is None:
+                expected_snapshot = snapshot
+            elif snapshot != expected_snapshot:
+                raise TDXResponseError(f"{dataset.value} source snapshot changed during pagination")
 
             yield page
             offset += len(page.records)

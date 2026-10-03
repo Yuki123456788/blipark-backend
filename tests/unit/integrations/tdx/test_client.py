@@ -4,6 +4,7 @@ import httpx
 import pytest
 
 from integrations.tdx.client import (
+    DATASET_SPECS,
     TDXAuthenticationError,
     TDXClient,
     TDXDataset,
@@ -54,6 +55,7 @@ def test_client_caches_token_and_paginates_until_count():
             return httpx.Response(200, json=token_response())
         calls["data"] += 1
         assert request.headers["authorization"] == "Bearer test-access-token"
+        assert request.url.params["$orderby"] == DATASET_SPECS[TDXDataset.ON_STREET_SPOTS].order_by
         offset = int(request.url.params["$skip"])
         offsets.append(offset)
         records = [{"ParkingSpotID": str(index)} for index in range(offset, min(offset + 2, 5))]
@@ -161,6 +163,26 @@ def test_client_rejects_incomplete_pagination():
     client = make_client(handler)
 
     with pytest.raises(TDXResponseError, match="stopped at 1 of 2"):
+        list(client.iter_pages(TDXDataset.CAR_PARKS))
+
+
+def test_client_rejects_a_snapshot_change_during_pagination():
+    def handler(request):
+        if "openid-connect/token" in str(request.url):
+            return httpx.Response(200, json=token_response())
+        offset = int(request.url.params["$skip"])
+        payload = parking_response(
+            "CarParks",
+            [{"CarParkID": str(offset)}, {"CarParkID": str(offset + 1)}],
+            count=4,
+        )
+        if offset:
+            payload["VersionID"] += 1
+        return httpx.Response(200, json=payload)
+
+    client = make_client(handler)
+
+    with pytest.raises(TDXResponseError, match="snapshot changed"):
         list(client.iter_pages(TDXDataset.CAR_PARKS))
 
 
