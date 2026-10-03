@@ -1,0 +1,72 @@
+name: Backend CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Lint and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      postgres:
+        image: postgis/postgis:17-3.5
+        env:
+          POSTGRES_DB: blipark
+          POSTGRES_USER: blipark
+          POSTGRES_PASSWORD: ci-only-password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U blipark -d blipark"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DJANGO_SETTINGS_MODULE: config.settings.test
+      TEST_WITH_POSTGIS: "true"
+      POSTGRES_DB: blipark
+      POSTGRES_USER: blipark
+      POSTGRES_PASSWORD: ci-only-password
+      POSTGRES_HOST: 127.0.0.1
+      POSTGRES_PORT: "5432"
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Install GeoDjango system libraries
+        run: sudo apt-get update && sudo apt-get install --yes binutils libgdal-dev libgeos-dev libproj-dev
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+          version: latest-known
+
+      - name: Install dependencies
+        run: uv sync --locked
+
+      - name: Check lint and formatting
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Check Django configuration and migrations
+        run: |
+          uv run python manage.py check
+          uv run python manage.py makemigrations --check --dry-run
+
+      - name: Run tests with PostGIS
+        run: uv run pytest
