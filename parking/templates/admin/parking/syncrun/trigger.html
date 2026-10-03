@@ -1,0 +1,38 @@
+{% extends "admin/base_site.html" %}
+{% load i18n %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; <a href="{% url 'admin:parking_syncrun_changelist' %}">{{ opts.verbose_name_plural|capfirst }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  {% if running_sync %}
+    <p class="errornote">
+      A sync is marked as running:
+      <a href="{% url 'admin:parking_syncrun_change' running_sync.pk %}">{{ running_sync.pk }}</a>.
+      The database lock remains the authority for duplicate execution prevention.
+    </p>
+  {% endif %}
+  <div class="module aligned">
+    <h2>Synchronize all five TDX Tainan parking datasets</h2>
+    <p>
+      This request runs synchronously and can take several minutes while respecting TDX rate-limit
+      response hints. Keep this page open until it redirects to the completed SyncRun.
+    </p>
+    <p>Only one TDX Tainan sync can execute at a time across CLI and Admin processes.</p>
+  </div>
+  <form method="post">
+    {% csrf_token %}
+    <div class="submit-row">
+      <input type="submit" value="Sync Tainan now" class="default">
+      <a href="{% url 'admin:parking_syncrun_changelist' %}" class="closelink">Cancel</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

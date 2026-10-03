@@ -1,10 +1,9 @@
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 
-from integrations.tdx.client import TDXClient, TDXClientError, TDXDataset
-from integrations.tdx.pipeline import TDX_PROCESSORS
-from parking.models import SyncStatus
-from parking.services.sync import ParkingSyncService
+from integrations.tdx.client import TDXClientError, TDXDataset
+from integrations.tdx.runner import run_tdx_sync
+from parking.models import SourceProvider, SyncStatus
+from parking.sync_lock import SyncAlreadyRunningError, single_sync_run
 
 
 class Command(BaseCommand):
@@ -25,20 +24,12 @@ class Command(BaseCommand):
             [TDXDataset(value) for value in options["datasets"]] if options["datasets"] else None
         )
         try:
-            with TDXClient(
-                client_id=settings.TDX_CLIENT_ID,
-                client_secret=settings.TDX_CLIENT_SECRET,
-                base_url=settings.TDX_BASE_URL,
-                token_url=settings.TDX_TOKEN_URL,
-                timeout_seconds=settings.TDX_TIMEOUT_SECONDS,
-                page_size=settings.TDX_PAGE_SIZE,
-                max_attempts=settings.TDX_MAX_ATTEMPTS,
-            ) as client:
-                summary = ParkingSyncService(client=client, processors=TDX_PROCESSORS).sync(
+            with single_sync_run(source=SourceProvider.TDX, city=options["city"]):
+                summary = run_tdx_sync(
                     city=options["city"],
                     datasets=datasets,
                 )
-        except TDXClientError as error:
+        except (TDXClientError, SyncAlreadyRunningError) as error:
             raise CommandError(str(error)) from error
 
         for dataset in summary.datasets:

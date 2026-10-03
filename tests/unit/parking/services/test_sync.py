@@ -11,7 +11,7 @@ from integrations.tdx.schemas import (
     TDXParkingEntranceExitResponse,
     TDXParkingSegmentResponse,
 )
-from parking.models import SyncIssueStage, SyncStatus
+from parking.models import SyncIssueStage, SyncStatus, SyncTrigger
 from parking.repositories import MissingParentError, UpsertDisposition, UpsertResult
 from parking.services.sync import ParkingSyncService
 
@@ -62,8 +62,8 @@ class FakeRecorder:
         self.dataset_finishes = []
         self.run_finish = None
 
-    def start_run(self, *, city, started_at):
-        self.started.append(("run", city, started_at))
+    def start_run(self, *, city, trigger, started_at):
+        self.started.append(("run", city, trigger, started_at))
         return RUN_ID
 
     def start_dataset(self, run_id, processor, *, started_at):
@@ -115,6 +115,25 @@ def test_service_counts_source_records_and_flattened_domain_entities():
     assert (lot.counters.fetched, lot.counters.mapped, lot.counters.inserted) == (1, 1, 1)
     assert (spots.counters.fetched, spots.counters.mapped, spots.counters.inserted) == (1, 3, 3)
     assert len(repository.records) == 4
+
+
+def test_service_records_the_selected_trigger():
+    car_page = fixture_page(
+        TDXDataset.CAR_PARKS,
+        "car_parks.json",
+        TDXCarParkResponse,
+        "CarParks",
+    )
+    recorder = FakeRecorder()
+
+    ParkingSyncService(
+        client=FakeClient({TDXDataset.CAR_PARKS: [car_page]}),
+        processors=TDX_PROCESSORS,
+        repository=FakeRepository(),
+        recorder=recorder,
+    ).sync(datasets=[TDXDataset.CAR_PARKS], trigger=SyncTrigger.MANUAL_ADMIN)
+
+    assert recorder.started[0][2] == SyncTrigger.MANUAL_ADMIN
 
 
 def test_service_continues_after_entity_validation_failure_without_raw_payload_issue():
