@@ -2,7 +2,7 @@
 
 Django／GeoDjango backend 與 TDX parking-data ingestion service 的初始骨架。
 
-目前已包含可執行的 Django project、PostGIS 設定、health endpoints、TDX Parking v1 validation／mapping／sync pipeline、container 設定與品質檢查。Phase 0 只同步台南靜態停車資料，trigger 限 manual CLI。
+目前已包含可執行的 Django project、PostGIS 設定、health endpoints、TDX Parking v1 validation／mapping／sync pipeline、Admin inspection／manual trigger、container 設定與品質檢查。同步範圍仍只包含台南靜態停車資料。
 
 ## 技術版本
 
@@ -45,6 +45,8 @@ curl http://localhost:8000/health/ready
 - `/health/live`：process 可回應即可成功，不檢查 database。
 - `/health/ready`：會執行 `SELECT 1`，database 無法使用時回傳 HTTP 503。
 - `/admin/`：Django Admin；先建立 superuser 才能登入。
+
+Container 啟動時會先執行 `collectstatic` 與 migration；WhiteNoise 只負責提供 Django 原生 static assets，因此 Admin 在 Gunicorn 下也會載入預設 CSS。
 
 建立管理員：
 
@@ -163,9 +165,17 @@ uv run --env-file .env python manage.py sync_tdx \
 
 每次執行都建立 `SyncRun` 與 per-dataset results；CLI 印出 fetched／valid／invalid／inserted／updated／unchanged／failed counters。所有 datasets 成功才回傳 exit code 0；partial 或 failed 以非零結束，但已成功且各自完成 transaction 的 entities 不回滾。到 `/admin/` 可查看 entity、provenance、run 與 issue。
 
+`Parking lots` 列表的 `Data inspection` 會彙整 entity 數量、relationship／geometry coverage、來源狀態與車種分布。`Sync runs` 列表的 `Sync Tainan now` 會同步執行同一個 service；執行期間頁面需保持開啟。CLI 與 Admin 共用 PostgreSQL advisory lock，同一時間只允許一個 TDX Tainan run，避免重複執行。
+
 `ParkingSpotID` 不能視為 authority-wide unique。`SourceReference` 會分開保存 TDX raw ID、parent scope 與 deterministic discriminator：路外車格使用 lot scope 與屬性 fingerprint，路邊車格使用 segment scope 與 WGS84 position。完整 composite key 才是 upsert identity，raw ID 仍可在 Admin 搜尋與追查。
 
 目前不因單次 missing source record 自動停用或刪除 entity。只有所有 pages 完整取得後才有資格做 missing-set 判斷，而 inactive threshold 尚待 Phase 1 資料觀察決定。
+
+所有 offset pages 都帶 dataset-specific `$orderby`。路邊車格會依 segment、raw spot ID 與座標排序；client 同時要求所有 pages 的 `Count`、`VersionID` 與 `SrcUpdateTime` 一致，避免 unordered pagination 靜默漏資料或重複資料。
+
+## GitHub CI
+
+`.github/workflows/ci.yml` 會在 push 與 pull request 執行 Ruff lint／format check、Django system check、migration drift check，以及包含 repository integration tests 的完整 PostGIS pytest suite。CI 使用測試專用 database credentials，不需要也不讀取 TDX secrets；live TDX acceptance 仍由開發者明確手動執行。
 
 ## 測試
 
