@@ -46,7 +46,7 @@ curl http://localhost:8000/health/ready
 - `/health/ready`：會執行 `SELECT 1`，database 無法使用時回傳 HTTP 503。
 - `/admin/`：Django Admin；先建立 superuser 才能登入。
 
-Container 啟動時會先執行 `collectstatic` 與 migration；WhiteNoise 只負責提供 Django 原生 static assets，因此 Admin 在 Gunicorn 下也會載入預設 CSS。
+Container 啟動時會先執行 `collectstatic` 與 migration；WhiteNoise 只負責提供 Django 原生 static assets，因此 Admin 在 Gunicorn 下也會載入預設 CSS。GeoDjango map widgets 直接載入 OpenStreetMap tiles；SecurityMiddleware 使用 `strict-origin-when-cross-origin`，讓跨站 tile request 只帶 site origin，不洩漏完整 Admin path，同時符合 OSM web tile 的 referrer 要求。
 
 建立管理員：
 

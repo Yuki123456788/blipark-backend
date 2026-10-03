@@ -13,3 +13,8 @@ class LivenessTest(SimpleTestCase):
         response = self.client.post(reverse("health-live"))
 
         assert response.status_code == 405
+
+    def test_security_middleware_preserves_origin_for_cross_origin_map_tiles(self):
+        response = self.client.get(reverse("health-live"))
+
+        assert response.headers["Referrer-Policy"] == "strict-origin-when-cross-origin"
