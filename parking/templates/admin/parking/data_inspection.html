@@ -1,0 +1,94 @@
+{% extends "admin/base_site.html" %}
+{% load i18n admin_urls %}
+
+{% block breadcrumbs %}
+<div class="breadcrumbs">
+  <a href="{% url 'admin:index' %}">{% translate 'Home' %}</a>
+  &rsaquo; <a href="{% url 'admin:app_list' app_label=opts.app_label %}">{{ opts.app_config.verbose_name }}</a>
+  &rsaquo; {{ title }}
+</div>
+{% endblock %}
+
+{% block content %}
+<div id="content-main">
+  <div class="module">
+    <table>
+      <caption>Entity inventory</caption>
+      <thead><tr><th scope="col">Entity</th><th scope="col">Count</th></tr></thead>
+      <tbody>
+        {% for label, count in entity_counts %}
+          <tr><th scope="row">{{ label }}</th><td>{{ count }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module">
+    <table>
+      <caption>Relationship coverage</caption>
+      <thead><tr><th scope="col">Check</th><th scope="col">Covered</th><th scope="col">Total</th></tr></thead>
+      <tbody>
+        {% for label, covered, total in relationship_coverage %}
+          <tr><th scope="row">{{ label }}</th><td>{{ covered }}</td><td>{{ total }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module">
+    <table>
+      <caption>Expected geometry gaps</caption>
+      <thead><tr><th scope="col">Check</th><th scope="col">Missing</th><th scope="col">Total</th></tr></thead>
+      <tbody>
+        {% for label, missing, total in geometry_gaps %}
+          <tr><th scope="row">{{ label }}</th><td>{{ missing }}</td><td>{{ total }}</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module">
+    <table>
+      <caption>Source reference state</caption>
+      <thead><tr><th scope="col">Dataset</th><th scope="col">Active</th><th scope="col">Inactive</th><th scope="col">Total</th></tr></thead>
+      <tbody>
+        {% for row in source_coverage %}
+          <tr><th scope="row">{{ row.dataset_label }}</th><td>{{ row.active }}</td><td>{{ row.inactive }}</td><td>{{ row.total }}</td></tr>
+        {% empty %}
+          <tr><td colspan="4">No source references have been stored.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module">
+    <table>
+      <caption>Parking spots by context and vehicle type</caption>
+      <thead><tr><th scope="col">Context</th><th scope="col">Vehicle type</th><th scope="col">Count</th></tr></thead>
+      <tbody>
+        {% for row in vehicle_coverage %}
+          <tr><td>{{ row.context_label }}</td><th scope="row">{{ row.vehicle_label }}</th><td>{{ row.total }}</td></tr>
+        {% empty %}
+          <tr><td colspan="3">No parking spots have been stored.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="module">
+    <table>
+      <caption>Latest sync run</caption>
+      {% if latest_run %}
+        <tbody>
+          <tr><th scope="row">Run</th><td><a href="{% url 'admin:parking_syncrun_change' latest_run.pk %}">{{ latest_run.pk }}</a></td></tr>
+          <tr><th scope="row">Status</th><td>{{ latest_run.get_status_display }}</td></tr>
+          <tr><th scope="row">Started</th><td>{{ latest_run.started_at }}</td></tr>
+          <tr><th scope="row">Finished</th><td>{{ latest_run.finished_at|default:"—" }}</td></tr>
+        </tbody>
+      {% else %}
+        <tbody><tr><td>No sync run has been recorded.</td></tr></tbody>
+      {% endif %}
+    </table>
+  </div>
+</div>
+{% endblock %}
