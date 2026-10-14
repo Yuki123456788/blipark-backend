@@ -1,0 +1,22 @@
+{
+  "UpdateTime": "2026-10-03T03:06:32+08:00",
+  "UpdateInterval": 14400,
+  "SrcUpdateTime": "2026-10-03T03:06:01+08:00",
+  "SrcUpdateInterval": -1,
+  "AuthorityCode": "TNN",
+  "VersionID": 8387,
+  "Count": 484,
+  "ParkingSegments": [
+    {
+      "ParkingSegmentID": "0185",
+      "ParkingSegmentName": {"Zh_tw": "忠義路-5"},
+      "RoadSection": {},
+      "ParkingSegmentPosition": {"PositionLat": 22.99815, "PositionLon": 120.20486},
+      "Description": "民族路至成功路",
+      "FareDescription": "每小時20元",
+      "HasChargingPoint": 0,
+      "City": "Tainan",
+      "CityCode": "TNN"
+    }
+  ]
+}

@@ -1,0 +1,31 @@
+{
+  "UpdateTime": "2026-10-03T03:06:32+08:00",
+  "UpdateInterval": 14400,
+  "SrcUpdateTime": "2026-10-03T03:05:59+08:00",
+  "SrcUpdateInterval": -1,
+  "AuthorityCode": "TNN",
+  "VersionID": 8387,
+  "Count": 88,
+  "ParkingEntranceExits": [
+    {
+      "CarParkID": "85744208",
+      "CarParkName": {"Zh_tw": "崇善路龍山停車場"},
+      "EntranceExitType": 2,
+      "Entrances": [
+        {
+          "EntranceName": {"Zh_tw": "崇善路龍山停車場入口"},
+          "Position": {"PositionLat": 22.9828, "PositionLon": 120.2214},
+          "Type": 1
+        }
+      ],
+      "Exits": [
+        {
+          "ExitName": {"Zh_tw": "崇善路龍山停車場出口"},
+          "Position": {"PositionLat": 22.98238, "PositionLon": 120.22207},
+          "Type": 1
+        }
+      ],
+      "EntranceExits": []
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "UpdateTime": "2026-10-03T03:06:32+08:00",
+  "UpdateInterval": 14400,
+  "SrcUpdateTime": "2026-10-03T03:06:00+08:00",
+  "SrcUpdateInterval": -1,
+  "AuthorityCode": "TNN",
+  "VersionID": 8387,
+  "Count": 57,
+  "ParkingSpots": [
+    {
+      "CarParkID": "54555420",
+      "CarParkName": {"Zh_tw": "海安路停車場"},
+      "Spots": [
+        {"ParkingSpotID": "54555420-871", "SpaceType": 1, "HasChargingPoint": 0, "Floor": "1"},
+        {"ParkingSpotID": "54555420-979", "SpaceType": 7, "HasChargingPoint": 0, "Floor": "B1"},
+        {"ParkingSpotID": "54555420-1032", "SpaceType": 11, "HasChargingPoint": 1, "Floor": "B1"}
+      ]
+    }
+  ]
+}
