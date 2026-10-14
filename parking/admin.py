@@ -7,6 +7,9 @@ from .models import (
     ParkingSegment,
     ParkingSpot,
     SourceReference,
+    SyncDatasetResult,
+    SyncIssue,
+    SyncRun,
 )
 
 
@@ -66,3 +69,59 @@ class SourceReferenceAdmin(admin.ModelAdmin):
     search_fields = ("source_id", "entity__id")
     list_select_related = ("entity",)
     readonly_fields = ("created_at", "updated_at")
+
+
+class SyncDatasetResultInline(admin.TabularInline):
+    model = SyncDatasetResult
+    extra = 0
+    can_delete = False
+    show_change_link = True
+    fields = (
+        "dataset",
+        "status",
+        "fetched",
+        "valid",
+        "invalid",
+        "inserted",
+        "updated",
+        "unchanged",
+        "failed",
+    )
+    readonly_fields = fields
+
+
+@admin.register(SyncRun)
+class SyncRunAdmin(admin.ModelAdmin):
+    list_display = ("id", "source", "city", "status", "started_at", "finished_at")
+    list_filter = ("source", "city", "status", "trigger")
+    search_fields = ("id", "authority_code", "error_summary")
+    readonly_fields = ("id", "started_at", "finished_at")
+    inlines = (SyncDatasetResultInline,)
+
+
+@admin.register(SyncDatasetResult)
+class SyncDatasetResultAdmin(admin.ModelAdmin):
+    list_display = (
+        "run",
+        "dataset",
+        "status",
+        "fetched",
+        "valid",
+        "invalid",
+        "inserted",
+        "updated",
+        "unchanged",
+        "failed",
+    )
+    list_filter = ("dataset", "status")
+    search_fields = ("run__id", "error_summary")
+    list_select_related = ("run",)
+
+
+@admin.register(SyncIssue)
+class SyncIssueAdmin(admin.ModelAdmin):
+    list_display = ("dataset_result", "stage", "code", "source_id", "record_index")
+    list_filter = ("stage", "code", "dataset_result__dataset")
+    search_fields = ("source_id", "summary", "dataset_result__run__id")
+    list_select_related = ("dataset_result", "dataset_result__run")
+    readonly_fields = ("created_at",)

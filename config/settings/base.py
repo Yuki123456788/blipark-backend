@@ -21,6 +21,14 @@ ALLOWED_HOSTS = env_list("DJANGO_ALLOWED_HOSTS")
 
 TDX_CLIENT_ID = os.getenv("TDX_CLIENT_ID", "")
 TDX_CLIENT_SECRET = os.getenv("TDX_CLIENT_SECRET", "")
+TDX_BASE_URL = os.getenv("TDX_BASE_URL", "https://tdx.transportdata.tw/api/basic")
+TDX_TOKEN_URL = os.getenv(
+    "TDX_TOKEN_URL",
+    "https://tdx.transportdata.tw/auth/realms/TDXConnect/protocol/openid-connect/token",
+)
+TDX_TIMEOUT_SECONDS = float(os.getenv("TDX_TIMEOUT_SECONDS", "30"))
+TDX_PAGE_SIZE = int(os.getenv("TDX_PAGE_SIZE", "500"))
+TDX_MAX_ATTEMPTS = int(os.getenv("TDX_MAX_ATTEMPTS", "4"))
 
 INSTALLED_APPS = [
     "django.contrib.admin",
