@@ -1,5 +1,7 @@
 """Anti-corruption mapper from TDX DTOs to source-neutral parking records."""
 
+import hashlib
+import json
 from collections import Counter
 
 from django.contrib.gis.geos import GEOSException, GEOSGeometry, Point
@@ -149,6 +151,8 @@ def map_off_street_spots(
                 SourceDataset.OFF_STREET_SPOT,
                 metadata,
                 spot.parking_spot_id,
+                source_scope=group.car_park_id,
+                source_discriminator=_off_street_spot_discriminator(spot),
             ),
             context=SpotContext.OFF_STREET,
             parent_source_id=group.car_park_id,
@@ -175,6 +179,8 @@ def map_on_street_spot(
             SourceDataset.ON_STREET_SPOT,
             metadata,
             record.parking_spot_id,
+            source_scope=record.parking_segment_id,
+            source_discriminator=_position_discriminator(record.position),
         ),
         context=SpotContext.ON_STREET,
         parent_source_id=record.parking_segment_id,
@@ -205,6 +211,8 @@ def _identity(
     metadata: TDXParkingWrapper,
     source_id: str,
     *,
+    source_scope: str = "",
+    source_discriminator: str = "",
     identifier_kind: IdentifierKind = IdentifierKind.PROVIDED,
 ) -> SourceIdentity:
     return SourceIdentity(
@@ -213,6 +221,8 @@ def _identity(
         dataset=dataset,
         authority_code=metadata.authority_code,
         source_id=source_id,
+        source_scope=source_scope,
+        source_discriminator=source_discriminator,
         identifier_kind=identifier_kind,
         source_updated_at=metadata.source_updated_at,
     )
@@ -255,6 +265,22 @@ def _entrance_source_id(
     longitude = f"{access_point.position.longitude:.7f}"
     latitude = f"{access_point.position.latitude:.7f}"
     return f"{car_park_id}:{access_kind}:{longitude}:{latitude}"
+
+
+def _off_street_spot_discriminator(spot) -> str:
+    payload = (
+        spot.space_type,
+        bool(spot.has_charging_point),
+        _text(spot.floor),
+        spot.length_cm,
+        spot.width_cm,
+    )
+    canonical = json.dumps(payload, ensure_ascii=True, separators=(",", ":"))
+    return f"attrs:{hashlib.sha256(canonical.encode()).hexdigest()[:32]}"
+
+
+def _position_discriminator(position) -> str:
+    return f"position:{position.longitude:.7f}:{position.latitude:.7f}"
 
 
 def _flag(value: int | None) -> bool | None:

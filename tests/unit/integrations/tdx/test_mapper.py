@@ -65,6 +65,8 @@ def test_off_street_spot_mapper_preserves_missing_location_and_source_subtypes()
     ]
     assert all(record.context == SpotContext.OFF_STREET for record in records)
     assert all(record.location is None for record in records)
+    assert all(record.identity.source_scope == "54555420" for record in records)
+    assert all(record.identity.source_discriminator.startswith("attrs:") for record in records)
     assert records[2].source_space_type == 11
     assert records[2].has_charging_point is True
 
@@ -81,6 +83,39 @@ def test_segment_and_on_street_spot_map_parent_and_geometry():
     assert spot.context == SpotContext.ON_STREET
     assert spot.parent_source_id == "1408"
     assert spot.location.tuple == (120.23821, 23.02357)
+    assert spot.identity.source_id == "1408-095"
+    assert spot.identity.source_scope == "1408"
+    assert spot.identity.source_discriminator == "position:120.2382100:23.0235700"
+
+
+def test_reused_spot_ids_have_distinct_deterministic_source_keys():
+    off_street_payload = json.loads((FIXTURE_DIR / "off_street_parking_spots.json").read_text())
+    repeated_off_street = dict(off_street_payload["ParkingSpots"][0]["Spots"][0])
+    repeated_off_street["Floor"] = "B2"
+    off_street_payload["ParkingSpots"][0]["Spots"].append(repeated_off_street)
+    off_street_response = TDXOffStreetSpotResponse.model_validate(off_street_payload)
+    off_street_records = map_off_street_spots(off_street_response.records[0], off_street_response)
+
+    on_street_payload = json.loads((FIXTURE_DIR / "on_street_parking_spots.json").read_text())
+    repeated_on_street = dict(on_street_payload["ParkingSegmentSpots"][0])
+    repeated_on_street["Position"] = dict(repeated_on_street["Position"])
+    repeated_on_street["Position"]["PositionLon"] = 120.23822
+    on_street_payload["ParkingSegmentSpots"].append(repeated_on_street)
+    on_street_response = TDXOnStreetSpotResponse.model_validate(on_street_payload)
+    on_street_records = [
+        map_on_street_spot(record, on_street_response) for record in on_street_response.records
+    ]
+
+    assert off_street_records[0].identity.source_id == off_street_records[-1].identity.source_id
+    assert (
+        off_street_records[0].identity.source_discriminator
+        != off_street_records[-1].identity.source_discriminator
+    )
+    assert on_street_records[0].identity.source_id == on_street_records[1].identity.source_id
+    assert (
+        on_street_records[0].identity.source_discriminator
+        != on_street_records[1].identity.source_discriminator
+    )
 
 
 @pytest.mark.parametrize(

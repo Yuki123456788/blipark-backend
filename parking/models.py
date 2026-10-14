@@ -231,6 +231,8 @@ class SourceReference(models.Model):
     dataset = models.CharField(max_length=32, choices=SourceDataset.choices)
     authority_code = models.CharField(max_length=32)
     source_id = models.CharField(max_length=255)
+    source_scope = models.CharField(max_length=255, blank=True)
+    source_discriminator = models.CharField(max_length=255, blank=True)
     identifier_kind = models.CharField(
         max_length=16,
         choices=IdentifierKind.choices,
@@ -245,7 +247,14 @@ class SourceReference(models.Model):
     class Meta:
         constraints = [
             models.UniqueConstraint(
-                fields=("source", "authority_code", "dataset", "source_id"),
+                fields=(
+                    "source",
+                    "authority_code",
+                    "dataset",
+                    "source_scope",
+                    "source_id",
+                    "source_discriminator",
+                ),
                 name="source_ref_identity_uniq",
             ),
             models.UniqueConstraint(
@@ -262,7 +271,10 @@ class SourceReference(models.Model):
         ]
 
     def __str__(self):
-        return f"{self.source}:{self.authority_code}:{self.dataset}:{self.source_id}"
+        key = ":".join(
+            part for part in (self.source_scope, self.source_id, self.source_discriminator) if part
+        )
+        return f"{self.source}:{self.authority_code}:{self.dataset}:{key}"
 
 
 class SyncRun(models.Model):

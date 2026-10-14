@@ -65,6 +65,8 @@ class ParkingRepository:
                 dataset=record.identity.dataset,
                 authority_code=record.identity.authority_code,
                 source_id=record.identity.source_id,
+                source_scope=record.identity.source_scope,
+                source_discriminator=record.identity.source_discriminator,
                 identifier_kind=record.identity.identifier_kind,
                 source_updated_at=record.identity.source_updated_at,
                 last_seen_at=seen_at,
@@ -92,6 +94,8 @@ class ParkingRepository:
                 authority_code=identity.authority_code,
                 dataset=identity.dataset,
                 source_id=identity.source_id,
+                source_scope=identity.source_scope,
+                source_discriminator=identity.source_discriminator,
             )
             .first()
         )
@@ -238,6 +242,8 @@ class ParkingRepository:
             authority_code=record.identity.authority_code,
             dataset=SourceDataset.CAR_PARK,
             source_id=record.lot_source_id,
+            source_scope="",
+            source_discriminator="",
             entity_type=EntityKind.LOT,
         ).first()
         if reference is None:
@@ -264,6 +270,8 @@ class ParkingRepository:
             authority_code=record.identity.authority_code,
             dataset=dataset,
             source_id=record.parent_source_id,
+            source_scope="",
+            source_discriminator="",
             entity_type=entity_type,
         ).first()
         if reference is None:

@@ -25,6 +25,8 @@ class SourceIdentity:
     source_id: str
     identifier_kind: IdentifierKind
     source_updated_at: datetime | None
+    source_scope: str = ""
+    source_discriminator: str = ""
 
 
 @dataclass(frozen=True, slots=True)

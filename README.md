@@ -163,6 +163,8 @@ uv run --env-file .env python manage.py sync_tdx \
 
 每次執行都建立 `SyncRun` 與 per-dataset results；CLI 印出 fetched／valid／invalid／inserted／updated／unchanged／failed counters。所有 datasets 成功才回傳 exit code 0；partial 或 failed 以非零結束，但已成功且各自完成 transaction 的 entities 不回滾。到 `/admin/` 可查看 entity、provenance、run 與 issue。
 
+`ParkingSpotID` 不能視為 authority-wide unique。`SourceReference` 會分開保存 TDX raw ID、parent scope 與 deterministic discriminator：路外車格使用 lot scope 與屬性 fingerprint，路邊車格使用 segment scope 與 WGS84 position。完整 composite key 才是 upsert identity，raw ID 仍可在 Admin 搜尋與追查。
+
 目前不因單次 missing source record 自動停用或刪除 entity。只有所有 pages 完整取得後才有資格做 missing-set 判斷，而 inactive threshold 尚待 Phase 1 資料觀察決定。
 
 ## 測試

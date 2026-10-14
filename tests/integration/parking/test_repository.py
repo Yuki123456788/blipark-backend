@@ -36,21 +36,23 @@ pytestmark = [
 ]
 
 
-def identity(entity_type, dataset, source_id):
+def identity(entity_type, dataset, source_id, *, source_scope="", source_discriminator=""):
     return SourceIdentity(
         entity_type=entity_type,
         source=SourceProvider.TDX,
         dataset=dataset,
         authority_code="TNN",
         source_id=source_id,
+        source_scope=source_scope,
+        source_discriminator=source_discriminator,
         identifier_kind=IdentifierKind.PROVIDED,
         source_updated_at=datetime.fromisoformat("2026-10-03T03:05:59+08:00"),
     )
 
 
-def lot_record(name="Test lot"):
+def lot_record(name="Test lot", source_id="lot-1"):
     return ParkingLotRecord(
-        identity=identity(EntityKind.LOT, SourceDataset.CAR_PARK, "lot-1"),
+        identity=identity(EntityKind.LOT, SourceDataset.CAR_PARK, source_id),
         name=name,
         name_en="",
         short_name="",
@@ -113,6 +115,41 @@ def test_spot_upsert_resolves_parent_through_source_reference():
     spot = ParkingSpot.objects.get(pk=result.entity_id)
     assert spot.lot_id == lot.entity_id
     assert spot.segment_id is None
+
+
+def test_spot_identity_can_repeat_across_scopes_and_discriminators():
+    repository = ParkingRepository()
+    seen_at = timezone.now()
+    repository.upsert(lot_record(source_id="lot-1"), seen_at=seen_at)
+    repository.upsert(lot_record(source_id="lot-2"), seen_at=seen_at)
+
+    def spot(parent_source_id, discriminator):
+        return ParkingSpotRecord(
+            identity=identity(
+                EntityKind.SPOT,
+                SourceDataset.OFF_STREET_SPOT,
+                "reused-spot-id",
+                source_scope=parent_source_id,
+                source_discriminator=discriminator,
+            ),
+            context=SpotContext.OFF_STREET,
+            parent_source_id=parent_source_id,
+            location=None,
+            footprint=None,
+            vehicle_type=VehicleType.CAR,
+            source_space_type=1,
+            has_charging_point=False,
+            floor="",
+            length_cm=None,
+            width_cm=None,
+        )
+
+    first = repository.upsert(spot("lot-1", "attrs:a"), seen_at=seen_at)
+    second = repository.upsert(spot("lot-2", "attrs:a"), seen_at=seen_at)
+    third = repository.upsert(spot("lot-1", "attrs:b"), seen_at=seen_at)
+
+    assert len({first.entity_id, second.entity_id, third.entity_id}) == 3
+    assert SourceReference.objects.filter(source_id="reused-spot-id").count() == 3
 
 
 def test_missing_parent_fails_without_partial_entity():
