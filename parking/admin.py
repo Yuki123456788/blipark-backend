@@ -1,7 +1,12 @@
-from django.contrib import admin
+from django.contrib import admin, messages
 from django.contrib.gis.admin import GISModelAdmin
+from django.core.exceptions import PermissionDenied
+from django.http import HttpResponseRedirect
 from django.template.response import TemplateResponse
-from django.urls import path
+from django.urls import path, reverse
+
+from integrations.tdx.client import TDXClientError
+from integrations.tdx.runner import run_tdx_sync
 
 from .admin_inspection import build_data_inspection_context
 from .models import (
@@ -13,7 +18,10 @@ from .models import (
     SyncDatasetResult,
     SyncIssue,
     SyncRun,
+    SyncStatus,
+    SyncTrigger,
 )
+from .sync_lock import SyncAlreadyRunningError, single_sync_run
 
 
 @admin.register(ParkingLot)
@@ -117,11 +125,59 @@ class SyncDatasetResultInline(admin.TabularInline):
 
 @admin.register(SyncRun)
 class SyncRunAdmin(admin.ModelAdmin):
+    change_list_template = "admin/parking/syncrun/change_list.html"
     list_display = ("id", "source", "city", "status", "started_at", "finished_at")
     list_filter = ("source", "city", "status", "trigger")
     search_fields = ("id", "authority_code", "error_summary")
     readonly_fields = ("id", "started_at", "finished_at")
     inlines = (SyncDatasetResultInline,)
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
+
+    def get_urls(self):
+        trigger_url = path(
+            "trigger/",
+            self.admin_site.admin_view(self.trigger_sync_view),
+            name="parking_syncrun_trigger",
+        )
+        return [trigger_url, *super().get_urls()]
+
+    def trigger_sync_view(self, request):
+        if not request.user.has_perm("parking.add_syncrun"):
+            raise PermissionDenied("User cannot trigger parking sync runs")
+
+        if request.method == "POST":
+            try:
+                with single_sync_run(source="tdx", city="Tainan"):
+                    summary = run_tdx_sync(trigger=SyncTrigger.MANUAL_ADMIN)
+            except SyncAlreadyRunningError as error:
+                self.message_user(request, str(error), level=messages.WARNING)
+                return HttpResponseRedirect(reverse("admin:parking_syncrun_changelist"))
+            except TDXClientError as error:
+                self.message_user(request, str(error), level=messages.ERROR)
+                return HttpResponseRedirect(reverse("admin:parking_syncrun_changelist"))
+
+            level = messages.SUCCESS if summary.status == SyncStatus.SUCCEEDED else messages.WARNING
+            self.message_user(
+                request,
+                f"TDX sync finished with status {summary.status}.",
+                level=level,
+            )
+            return HttpResponseRedirect(
+                reverse("admin:parking_syncrun_change", args=(summary.run_id,))
+            )
+
+        context = {
+            **self.admin_site.each_context(request),
+            "opts": self.model._meta,
+            "title": "Sync Tainan now",
+            "running_sync": SyncRun.objects.filter(status=SyncStatus.RUNNING).first(),
+        }
+        return TemplateResponse(request, "admin/parking/syncrun/trigger.html", context)
 
 
 @admin.register(SyncDatasetResult)

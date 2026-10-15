@@ -56,6 +56,7 @@ class SyncStatus(models.TextChoices):
 
 class SyncTrigger(models.TextChoices):
     MANUAL_CLI = "manual_cli", "Manual CLI"
+    MANUAL_ADMIN = "manual_admin", "Manual Django Admin"
 
 
 class SyncIssueStage(models.TextChoices):

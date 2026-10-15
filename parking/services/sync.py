@@ -83,7 +83,13 @@ class SyncSummary:
 
 
 class SyncRecorder(Protocol):
-    def start_run(self, *, city: str, started_at: datetime) -> UUID: ...
+    def start_run(
+        self,
+        *,
+        city: str,
+        trigger: SyncTrigger,
+        started_at: datetime,
+    ) -> UUID: ...
 
     def start_dataset(self, run_id: UUID, processor: DatasetProcessor, *, started_at: datetime): ...
 
@@ -109,11 +115,17 @@ class SyncRecorder(Protocol):
 
 
 class DjangoSyncRecorder:
-    def start_run(self, *, city: str, started_at: datetime) -> UUID:
+    def start_run(
+        self,
+        *,
+        city: str,
+        trigger: SyncTrigger,
+        started_at: datetime,
+    ) -> UUID:
         run = SyncRun.objects.create(
             source=SourceProvider.TDX,
             city=city,
-            trigger=SyncTrigger.MANUAL_CLI,
+            trigger=trigger,
             started_at=started_at,
         )
         return run.pk
@@ -194,6 +206,7 @@ class ParkingSyncService:
         *,
         city: str = "Tainan",
         datasets: Iterable[Any] | None = None,
+        trigger: SyncTrigger = SyncTrigger.MANUAL_CLI,
     ) -> SyncSummary:
         selected = (
             {processor.dataset for processor in self.processors}
@@ -201,7 +214,7 @@ class ParkingSyncService:
             else set(datasets)
         )
         started_at = self.clock()
-        run_id = self.recorder.start_run(city=city, started_at=started_at)
+        run_id = self.recorder.start_run(city=city, trigger=trigger, started_at=started_at)
         summaries: list[DatasetSummary] = []
         status_by_dataset: dict[Any, SyncStatus] = {}
         authority_code = ""
