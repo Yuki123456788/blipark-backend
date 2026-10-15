@@ -1,6 +1,9 @@
 from django.contrib import admin
 from django.contrib.gis.admin import GISModelAdmin
+from django.template.response import TemplateResponse
+from django.urls import path
 
+from .admin_inspection import build_data_inspection_context
 from .models import (
     ParkingEntrance,
     ParkingLot,
@@ -15,10 +18,28 @@ from .models import (
 
 @admin.register(ParkingLot)
 class ParkingLotAdmin(GISModelAdmin):
+    change_list_template = "admin/parking/parkinglot/change_list.html"
     list_display = ("name", "city_code", "district_name", "is_public", "updated_at")
     list_filter = ("city_code", "is_public", "has_ev_charging", "has_live_occupancy")
     search_fields = ("name", "name_en", "address", "source_references__source_id")
     readonly_fields = ("id", "created_at", "updated_at")
+
+    def get_urls(self):
+        inspection_url = path(
+            "data-inspection/",
+            self.admin_site.admin_view(self.data_inspection_view),
+            name="parking_data_inspection",
+        )
+        return [inspection_url, *super().get_urls()]
+
+    def data_inspection_view(self, request):
+        context = {
+            **self.admin_site.each_context(request),
+            **build_data_inspection_context(),
+            "opts": self.model._meta,
+            "title": "Parking data inspection",
+        }
+        return TemplateResponse(request, "admin/parking/data_inspection.html", context)
 
 
 @admin.register(ParkingEntrance)
@@ -81,9 +102,11 @@ class SyncDatasetResultInline(admin.TabularInline):
     fields = (
         "dataset",
         "status",
+        "pages_fetched",
         "fetched",
         "valid",
         "invalid",
+        "mapped",
         "inserted",
         "updated",
         "unchanged",
@@ -107,9 +130,11 @@ class SyncDatasetResultAdmin(admin.ModelAdmin):
         "run",
         "dataset",
         "status",
+        "pages_fetched",
         "fetched",
         "valid",
         "invalid",
+        "mapped",
         "inserted",
         "updated",
         "unchanged",
@@ -118,6 +143,7 @@ class SyncDatasetResultAdmin(admin.ModelAdmin):
     list_filter = ("dataset", "status")
     search_fields = ("run__id", "error_summary")
     list_select_related = ("run",)
+    readonly_fields = ("started_at", "finished_at")
 
 
 @admin.register(SyncIssue)
